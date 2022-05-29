@@ -1,0 +1,69 @@
+{
+  "project_info": {
+    "project_number": "720970553259",
+    "firebase_url": "https://fir-course-adeef-default-rtdb.firebaseio.com",
+    "project_id": "fir-course-adeef",
+    "storage_bucket": "fir-course-adeef.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:720970553259:android:96467654a353c45042e4ee",
+        "android_client_info": {
+          "package_name": "com.example.nilopartner"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "720970553259-2sqfbbkrj650rm4coaegg5ig1ksio45s.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANWTxtQu2QgNiV94QoV7pbBeZsgggAvIA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "720970553259-2sqfbbkrj650rm4coaegg5ig1ksio45s.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:720970553259:android:18fc4e5615a4823642e4ee",
+        "android_client_info": {
+          "package_name": "com.example.udemyfirebasefirst"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "720970553259-2sqfbbkrj650rm4coaegg5ig1ksio45s.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANWTxtQu2QgNiV94QoV7pbBeZsgggAvIA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "720970553259-2sqfbbkrj650rm4coaegg5ig1ksio45s.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
