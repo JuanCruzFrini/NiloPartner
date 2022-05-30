@@ -16,4 +16,7 @@
 
     <string name="producto_empty_cart">Carrito vacio</string>
     <string name="order_total_price">Total: $%1$.2f USD</string>
+
+    <string name="track_title">Rastreo</string>
+    <string name="chat_title">Soporte</string>
 </resources>

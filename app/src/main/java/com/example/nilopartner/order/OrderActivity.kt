@@ -4,6 +4,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.message.ChatFragment
 import com.example.nilopartner.Constants
 import com.example.nilopartner.R
 import com.example.nilopartner.databinding.ActivityMainBinding
@@ -29,7 +30,12 @@ class OrderActivity : AppCompatActivity(), OnOrderListener, OrderAux {
     }
 
     override fun onStartChat(order: Order) {
-        TODO("Not yet implemented")
+        orderSelected = order
+        val fragment = ChatFragment()
+        supportFragmentManager.beginTransaction()
+            .add(R.id.containerMain, fragment)
+            .addToBackStack(null)
+            .commit()
     }
 
     override fun onStatusChange(order: Order) {
