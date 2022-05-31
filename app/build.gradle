@@ -54,9 +54,15 @@ dependencies {
     //Realtime Database
     implementation 'com.google.firebase:firebase-database-ktx'
 
+    //Analytics
+    implementation 'com.google.firebase:firebase-analytics-ktx'
+
     //Glide
     implementation 'com.github.bumptech.glide:glide:4.13.0'
     kapt 'com.github.bumptech.glide:compiler:4.13.0'
+
+    //volley
+    implementation 'com.android.volley:volley:1.1.1'
 
     implementation 'androidx.core:core-ktx:1.7.0'
     implementation 'androidx.appcompat:appcompat:1.4.1'

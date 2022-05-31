@@ -38,7 +38,7 @@ class OrderAdapter(
 
         var names = ""
         order.products.forEach {
-            names += "${it.value.name}"
+            names += "${it.value.name}, "
         }
         holder.binding.txtProductNames.text = names.dropLast(2)
 

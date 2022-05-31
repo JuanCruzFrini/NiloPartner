@@ -60,14 +60,6 @@ class ChatFragment : Fragment(), OnChatListener {
                 adapter = this@ChatFragment.adapter
             }
         }
-
-      /*  (1..20).forEach {
-            adapter.addMessage(Message(
-                id = it.toString(),
-                message = if (it%4 == 0) "Hola como estas".repeat(4) else "Hola como estas?",
-                sender = if (it%3 == 0) "tu" else "yo",
-                myUid = "yo"))
-        }*/
     }
 
     private fun setUpButtons(){
