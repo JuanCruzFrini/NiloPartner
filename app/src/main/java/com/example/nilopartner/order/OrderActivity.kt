@@ -15,6 +15,7 @@ import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.analytics.ktx.analytics
 import com.google.firebase.analytics.ktx.logEvent
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.ktx.Firebase
 
 class OrderActivity : AppCompatActivity(), OnOrderListener, OrderAux {
@@ -122,6 +123,8 @@ class OrderActivity : AppCompatActivity(), OnOrderListener, OrderAux {
     private fun setupFirestore(){
         val db = FirebaseFirestore.getInstance()
         db.collection(Constants.COLL_REQUESTS)
+            //Para las compras, optimo es ordenar en base a la fecha
+            .orderBy(Constants.PROP_DATE, Query.Direction.DESCENDING)
             .get()
             .addOnSuccessListener {
                 for (document in it){
@@ -133,7 +136,6 @@ class OrderActivity : AppCompatActivity(), OnOrderListener, OrderAux {
             .addOnFailureListener {
                 Toast.makeText(this, "Error al consultar los datos", Toast.LENGTH_SHORT).show()
             }
-
     }
 
     private fun setRecyclerView() {

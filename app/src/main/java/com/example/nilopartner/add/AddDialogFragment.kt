@@ -5,11 +5,15 @@ import android.app.AlertDialog
 import android.app.Dialog
 import android.content.DialogInterface
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.View
 import android.widget.Button
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,15 +26,17 @@ import com.example.nilopartner.entities.Producto
 import com.example.nilopartner.R
 import com.example.nilopartner.databinding.FragmentDialogAddBinding
 import com.example.nilopartner.producto.MainAux
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import java.io.ByteArrayOutputStream
 
 class AddDialogFragment : DialogFragment(), DialogInterface.OnShowListener {
 
-    private var binding:FragmentDialogAddBinding? = null
+    private var binding: FragmentDialogAddBinding? = null
 
-    private var positiveButton:Button? = null
-    private var negativeButton:Button? = null
+    private var positiveButton: Button? = null
+    private var negativeButton: Button? = null
 
     private var producto: Producto? = null
 
@@ -39,7 +45,7 @@ class AddDialogFragment : DialogFragment(), DialogInterface.OnShowListener {
         activity?.let { activity ->
             binding = FragmentDialogAddBinding.inflate(LayoutInflater.from(context))
 
-            binding?.let  {
+            binding?.let {
                 val builder = AlertDialog.Builder(activity)
                     .setTitle("Agregar producto")
                     .setNegativeButton("Cancelar", null)
@@ -65,11 +71,14 @@ class AddDialogFragment : DialogFragment(), DialogInterface.OnShowListener {
             positiveButton = it.getButton(Dialog.BUTTON_POSITIVE)
             negativeButton = it.getButton(Dialog.BUTTON_NEGATIVE)
 
+            producto?.let { positiveButton?.setText("Actualizar") }
+
             positiveButton?.setOnClickListener {
                 binding?.let {
                     enableUI(false)
-                    uploadImage(producto?.id){ eventPost->
-                        if (eventPost.isSuccess){
+                    //uploadImage(producto?.id){ eventPost->
+                    uploadReducedImage(producto?.id, producto?.imgUrl) { eventPost ->
+                        if (eventPost.isSuccess) {
                             if (producto == null) {
                                 //si el producto es nulo, lo agrega
                                 val producto = Producto(
@@ -77,14 +86,15 @@ class AddDialogFragment : DialogFragment(), DialogInterface.OnShowListener {
                                     description = it.etDescripcion.text.toString().trim(),
                                     imgUrl = eventPost.photoUrl,
                                     quantity = it.etQuantity.text.toString().toInt(),
-                                    price = it.etPrice.text.toString().toDouble()
+                                    price = it.etPrice.text.toString().toDouble(),
+                                    sellerId = eventPost.sellerId
                                 )
                                 save(producto, eventPost.documentId!!)
 
                             } else {
                                 //si el producto no es nulo, lo actualiza
                                 producto?.apply {
-                                    name =  it.etName.text.toString().trim()
+                                    name = it.etName.text.toString().trim()
                                     description = it.etDescripcion.text.toString().trim()
                                     imgUrl = eventPost.photoUrl
                                     quantity = it.etQuantity.text.toString().toInt()
@@ -108,6 +118,7 @@ class AddDialogFragment : DialogFragment(), DialogInterface.OnShowListener {
         producto = (activity as? MainAux)?.getProductSelected()
         producto?.let { producto ->
             binding?.let {
+                dialog?.setTitle("Actualizar producto")
                 it.etName.setText(producto.name)
                 it.etDescripcion.setText(producto.description)
                 it.etQuantity.setText(producto.quantity.toString())
@@ -123,7 +134,7 @@ class AddDialogFragment : DialogFragment(), DialogInterface.OnShowListener {
     }
 
     //listener de open gallery
-    private fun configButtons(){
+    private fun configButtons() {
         binding?.let {
             it.ibProducto.setOnClickListener {
                 openGallery()
@@ -138,15 +149,15 @@ class AddDialogFragment : DialogFragment(), DialogInterface.OnShowListener {
     }
 
     //sube la imagen seleccionada a Firebase Storage
-    private fun uploadImage(productID:String?, callBack:(EvenPost)->Unit){
+    private fun uploadImage(productID: String?, callBack: (EvenPost) -> Unit) {
         val eventPost = EvenPost()
         eventPost.documentId = productID ?: FirebaseFirestore.getInstance()
             .collection(Constants.COLL_PRODUCTOS).document().id
 
         val storageRef = FirebaseStorage.getInstance().reference.child(Constants.PATH_IMAGE)
 
-        photoSelectedUri?.let { uri->
-            binding?.let { binding->
+        photoSelectedUri?.let { uri ->
+            binding?.let { binding ->
                 binding.progressBar.show()
                 val photoRef = storageRef.child(eventPost.documentId!!)
                 photoRef.putFile(uri)
@@ -165,15 +176,117 @@ class AddDialogFragment : DialogFragment(), DialogInterface.OnShowListener {
                             callBack(eventPost)
                         }
                     }
-                    .addOnFailureListener{
+                    .addOnFailureListener {
                         eventPost.isSuccess = false
                         enableUI(true)
-                        Toast.makeText(activity, "Error al subir imagen ${it.message}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            activity,
+                            "Error al subir imagen ${it.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
                         callBack(eventPost)
                     }
             }
         }
     }
+
+    //sube la imagen seleccionada y reducida a Firebase Storage
+    private fun uploadReducedImage(productID: String?, imageUrl:String?, callBack: (EvenPost) -> Unit) {
+        val eventPost = EvenPost()
+        imageUrl?.let { eventPost.photoUrl = it }
+        eventPost.documentId = productID ?: FirebaseFirestore.getInstance()
+            .collection(Constants.COLL_PRODUCTOS).document().id
+
+        FirebaseAuth.getInstance().currentUser?.let { user ->
+            //creamos una carpeta de imagenes por usuario autenticado, con su UID
+            val imagesRef = FirebaseStorage.getInstance().reference.child(user.uid)
+                .child(Constants.PATH_IMAGE)
+            val photoRef = imagesRef.child(eventPost.documentId!!).child("image0")
+
+            eventPost.sellerId = user.uid
+
+            //(photoSelectedUri?.let { uri->
+            if (photoSelectedUri == null) {
+                eventPost.isSuccess = true
+                callBack(eventPost)
+            } else {
+                binding?.let { binding ->
+                    getBitmapFromUri(photoSelectedUri!!)?.let { bitmap ->
+                        binding.progressBar.show()
+
+                        //reduce el peso de la imagen a subir
+                        val baos = ByteArrayOutputStream()
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 50, baos)
+
+                        //sube la imagen en la calidad por default
+                        //photoRef.putFile(uri)
+                        //sube la imagen comprimida
+                        photoRef.putBytes(baos.toByteArray())
+                            .addOnProgressListener {
+                                val progress =
+                                    (100 * it.bytesTransferred / it.totalByteCount).toInt()
+                                it.run {
+                                    binding.progressBar.progress = progress
+                                    binding.txtProgress.text = String.format("%s%%", progress)
+                                }
+                            }
+                            .addOnSuccessListener {
+                                it.storage.downloadUrl.addOnSuccessListener { downloadUrl ->
+                                    Log.i("URL", downloadUrl.toString())
+                                    eventPost.isSuccess = true
+                                    eventPost.photoUrl = downloadUrl.toString()
+                                    callBack(eventPost)
+                                }
+                            }
+                            .addOnFailureListener {
+                                eventPost.isSuccess = false
+                                enableUI(true)
+                                Toast.makeText(
+                                    activity,
+                                    "Error al subir imagen ${it.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                callBack(eventPost)
+                            }
+                    }
+                }
+            }
+        }
+    }
+
+
+    //create bitmap para luego reducir tamaño
+    private fun getBitmapFromUri(uri:Uri) : Bitmap?{
+        activity?.let {
+            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val source = ImageDecoder.createSource(it.contentResolver, uri)
+                ImageDecoder.decodeBitmap(source)
+            } else {
+                MediaStore.Images.Media.getBitmap(it.contentResolver,uri)
+            }
+            //return getResizedImage(bitmap, 2480)
+            return bitmap
+        }
+        return null
+    }
+
+    //redimension de imagen (sin usar pq deforma mucho la foto)
+    private fun getResizedImage(image:Bitmap, maxSize:Int) : Bitmap{
+        var width = image.width
+        var height = image.height
+        if (width <= maxSize && height <= maxSize) return  image
+
+        val bitmapRatio = width.toFloat() / height.toFloat()
+        if (bitmapRatio > 1){
+            width = maxSize
+            height = (width / bitmapRatio).toInt()
+        } else{
+            height = maxSize
+            width = (height / bitmapRatio).toInt()
+        }
+        return Bitmap.createScaledBitmap(image, width, height, true)
+    }
+
 
     //inserta el producto en Firestore
     private fun save(producto: Producto, documentId:String){
@@ -183,14 +296,14 @@ class AddDialogFragment : DialogFragment(), DialogInterface.OnShowListener {
             .document(documentId).set(producto)
             .addOnSuccessListener {
                 Toast.makeText(activity, "Producto añadido", Toast.LENGTH_SHORT).show()
+                dismiss()
             }
             .addOnFailureListener {
+                enableUI(true)
                 Toast.makeText(activity, "Error al insertar ${it.message}", Toast.LENGTH_SHORT).show()
             }
             .addOnCompleteListener {
-                enableUI(true)
                 binding?.progressBar?.hide()
-                dismiss()
             }
     }
 
@@ -224,6 +337,8 @@ class AddDialogFragment : DialogFragment(), DialogInterface.OnShowListener {
                 etDescripcion.isEnabled = enable
                 etQuantity.isEnabled = enable
                 etPrice.isEnabled = enable
+                progressBar.visibility = if (enable) View.INVISIBLE else View.VISIBLE
+                txtProgress.visibility = if (enable) View.INVISIBLE else View.VISIBLE
             }
         }
     }

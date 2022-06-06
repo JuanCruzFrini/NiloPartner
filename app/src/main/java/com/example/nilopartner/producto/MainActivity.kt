@@ -1,11 +1,18 @@
 package com.example.nilopartner.producto
 
+import android.app.Activity
+import android.content.DialogInterface
 import android.content.Intent
+import android.icu.text.SymbolTable
+import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.provider.MediaStore
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.recyclerview.widget.GridLayoutManager
@@ -18,6 +25,8 @@ import com.example.nilopartner.order.OrderActivity
 import com.firebase.ui.auth.AuthUI
 import com.firebase.ui.auth.ErrorCodes
 import com.firebase.ui.auth.IdpResponse
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.analytics.ktx.analytics
 import com.google.firebase.analytics.ktx.logEvent
@@ -26,6 +35,9 @@ import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageException
+import java.lang.Exception
 
 class MainActivity : AppCompatActivity(), OnProductListener, MainAux {
 
@@ -147,6 +159,63 @@ class MainActivity : AppCompatActivity(), OnProductListener, MainAux {
         }
     }
 
+    //para seleccion de imagenes multiples
+    private var count =0
+    private val uriList = mutableListOf<Uri>()
+    private val progressSnackbar: Snackbar by lazy {
+        Snackbar.make(binding.root, "", Snackbar.LENGTH_INDEFINITE)
+    }
+
+    //para seleccion de imagenes multiples
+    private var galleryResult = registerForActivityResult(ActivityResultContracts.StartActivityForResult()){
+        if (it.resultCode == Activity.RESULT_OK){
+            if (it.data?.clipData != null){
+                count = it.data!!.clipData!!.itemCount
+
+                for (i in 0..count - 1){
+                    uriList.add(it.data!!.clipData!!.getItemAt(i).uri)
+                }
+                if (count > 0) uploadImage(0)
+            }
+        }
+    }
+
+    //para seleccion de imagenes multiples
+    private fun uploadImage(position: Int) {
+        progressSnackbar.apply {
+            setText("Subiendo imagen ${position + 1} de $context...")
+            show()
+        }
+        FirebaseAuth.getInstance().currentUser?.let { user ->
+            val productoRef =  FirebaseStorage.getInstance().reference
+                .child(user.uid)
+                .child(Constants.PATH_IMAGE)
+                .child(productSelected!!.id!!)
+                .child("image${position + 1}")
+
+            productoRef.putFile(uriList[position])
+                .addOnSuccessListener {
+                    if (position < count - 1){
+                        uploadImage(position + 1)
+                    } else {
+                        progressSnackbar.apply {
+                            setText("Imagenes subidas correctamente")
+                            duration = Snackbar.LENGTH_SHORT
+                            show()
+                        }
+                    }
+                }
+                .addOnFailureListener {
+                    progressSnackbar.apply {
+                        setText("Error al subir la imagen${position + 1}")
+                        duration = Snackbar.LENGTH_LONG
+                        show()
+                    }
+                }
+
+        }
+    }
+
     private fun setRecyclerView() {
         adapter = ProductAdapter(mutableListOf(), this)
         binding.recyclerView.let {
@@ -163,15 +232,74 @@ class MainActivity : AppCompatActivity(), OnProductListener, MainAux {
 
     //borra el producto de la databse
     override fun onLongClick(producto: Producto) {
+        val adapter = ArrayAdapter<String>(this, android.R.layout.select_dialog_singlechoice)
+        adapter.add("Eliminar")
+        adapter.add("Añadir fotos")
+
+        MaterialAlertDialogBuilder(this)
+            .setAdapter(adapter){ dialogInterface : DialogInterface, position:Int ->
+                when(position){
+                    0 -> confirmDeleteProducto(producto)
+                    1 -> selectMultiplesImages(producto)
+                }
+            }
+            .show()
+    }
+
+    private fun selectMultiplesImages(producto: Producto) {
+        productSelected = producto
+        val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true) //habilita la seleccion multiple
+        galleryResult.launch(intent)
+    }
+
+    //
+    private fun confirmDeleteProducto(producto: Producto){
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Eliminar producto?")
+            .setMessage("El producto se eliminará permanentemente")
+            .setPositiveButton("Eliminar"){ _,_ ->
+                val db = FirebaseFirestore.getInstance()
+                val productRef = db.collection(Constants.COLL_PRODUCTOS)
+                producto.id?.let { id ->
+                    producto.imgUrl?.let{ url ->
+                        try {
+                            val photoRef = FirebaseStorage.getInstance().getReferenceFromUrl(url)
+
+                            //Eliminamos el registro y la foto
+                            //FirebaseStorage.getInstance().reference.child(Constants.PATH_IMAGE).child(id)
+                            photoRef
+                                .delete()
+                                .addOnSuccessListener {
+                                    deleteProductoFromFirestore(id)
+                                }
+                                .addOnFailureListener {
+                                    if ((it as StorageException).errorCode == StorageException.ERROR_OBJECT_NOT_FOUND){
+                                        deleteProductoFromFirestore(id)
+                                    } else {
+                                        Toast.makeText(this, "Error al eliminar foto", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                        } catch (e:Exception){
+                            e.printStackTrace()
+                            deleteProductoFromFirestore(id)
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            //.create()
+            .show()
+    }
+
+    private fun deleteProductoFromFirestore(productoId: String) {
         val db = FirebaseFirestore.getInstance()
         val productRef = db.collection(Constants.COLL_PRODUCTOS)
-        producto.id?.let { id ->
-            productRef.document(id)
-                .delete()
-                .addOnFailureListener {
-                    Toast.makeText(this, "Error al eliminar", Toast.LENGTH_SHORT).show()
-                }
-        }
+        productRef.document(productoId)
+            .delete()
+            .addOnFailureListener {
+                Toast.makeText(this, "Error al eliminar registro", Toast.LENGTH_SHORT).show()
+            }
     }
 
     //menu overflow
@@ -189,6 +317,12 @@ class MainActivity : AppCompatActivity(), OnProductListener, MainAux {
 
     private fun openHistory() {
         startActivity(Intent(this, OrderActivity::class.java))
+    }
+
+    //abrimos gallery
+    private fun openGallery() {
+        val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+        resultLauncher.launch(intent)
     }
 
     //lee listado de firebase en y lo actualiza en tiempo real

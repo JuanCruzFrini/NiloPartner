@@ -8,6 +8,8 @@ object Constants {
     const val COLL_TOKENS = "tokens"
 
     const val PROP_STATUS = "status"
+    //Queries
+    const val PROP_DATE = "date"
 
     //storage
     const val PATH_IMAGE = "product_images"

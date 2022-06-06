@@ -10,7 +10,8 @@ data class Producto(
     var description:String? = null,
     var imgUrl:String? = null,
     var quantity:Int = 0,
-    var price:Double = 0.0
+    var price:Double = 0.0,
+    var sellerId:String = ""
 )
 {
     //clickDerecho>generate>equals and hashcode
